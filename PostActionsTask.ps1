@@ -35,7 +35,7 @@ $UpdateCountTo = $CurrentRun + 1
 New-ItemProperty -Path $RegistryPath -Name "TriggerPostActions" -PropertyType dword -Value $UpdateCountTo -force | Out-Null
 
 #Import Functions from GitHUb
-iex (irm functions.garytown.com)
+iex (irm https://functions.garytown.com)
 
 #Update TimeZone 
 Set-TimeZoneFromIP
@@ -44,9 +44,13 @@ Set-TimeZoneFromIP
 Invoke-UpdateScanMethodMSStore
 
 #Enable Microsoft Other Updates:
+# The following GUID enables Microsoft Update for Windows Update (adds Microsoft Update service)
 (New-Object -com "Microsoft.Update.ServiceManager").AddService2("7971f918-a847-4430-9279-4a52d1efe18d",7,"")
 
-#Enable "Notify me when a restart is required to finish updating"
+if (!(Test-Path -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings")) {
+    New-Item -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" -Force | Out-Null
+}
+New-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings -Name RestartNotificationsAllowed2 -PropertyType dword -Value 1 -Force | Out-Null
 New-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings -Name RestartNotificationsAllowed2 -PropertyType dword -Value 1
 
 
@@ -69,11 +73,16 @@ if (($CurrentRun -ge 2) -and ($CurrentRun -lt 5)){
     }
 
     $env:Path += ";$env:ProgramData\chocolatey\bin"
-    Write-Host "Installing Dell Command Update..." -ForegroundColor Yellow
-    choco install dellcommandupdate -y --ignore-checksums
-
     Write-Host "Running Dell Command Update to apply updates..." -ForegroundColor Cyan
-    Start-Process "C:\Program Files (x86)\Dell\CommandUpdate\dcu-cli.exe" -ArgumentList "/silent /applyupdates /reboot=enable"
+    $dcuCliPath = "C:\Program Files (x86)\Dell\CommandUpdate\dcu-cli.exe"
+    if (Test-Path $dcuCliPath) {
+        Start-Process $dcuCliPath -ArgumentList "/silent /applyupdates /reboot=enable"
+    } else {
+        Write-Host "Dell Command Update CLI not found at $dcuCliPath" -ForegroundColor Red
+    # Reboot notice
+    Start-Process shutdown -ArgumentList "/r /t 120 /c ""In 2 Minutes - Currently Performing Initial Setup Modifications - Reboot $CurrentRun of 5""  /f /d p:4:1"
+    # Reboot notice
+    Start-Process shutdown -ArgumentList "/r /t 120 /c ""In 2 Minutes - Currently Performing Intial Setup Modifications - Reboot $CurrentRun of 5""  /f /d p:4:1"
 
     # Reboot notice
     Start-Process shutdown -ArgumentList "/r /t 120 /c ""In 2 Minutes - Currently Performing Intial Setup Modifications - Reboot $CurrentRun of 5""  /f /d p:4:1"
@@ -88,4 +97,4 @@ if ($CurrentRun -ge 5){
 
 '@
 
-$PostActionScript | Out-File -FilePath $ScriptPath -Force
+$PostActionScript | Out-File -FilePath $ScriptPath -Force -Encoding UTF8

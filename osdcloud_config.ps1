@@ -58,7 +58,7 @@ Write-Host -ForegroundColor Green "$ScriptName $ScriptVersion"
 #Variables to define the Windows OS / Edition etc to be applied during OSDCloud
 $Product = (Get-MyComputerProduct)
 $Model = (Get-MyComputerModel)
-$Manufacturer = (Get-CimInstance -ClassName Win32_ComputerSystem).Manufacturer
+$Manufacturer = (Get-CimInstance -ClassName Win32_ComputerSystem | Select-Object -ExpandProperty Manufacturer)
 $OSVersion = 'Windows 11' #Used to Determine Driver Pack
 $OSReleaseID = '24H2' #Used to Determine Driver Pack
 $OSName = 'Windows 11 24H2 x64'
@@ -107,7 +107,11 @@ Write-SectionHeader -Message "OSDCloud Process Complete, Running Custom Actions 
 
 #Copy CMTrace Local:
 if (Test-path -path "x:\windows\system32\cmtrace.exe") {
-    copy-item "x:\windows\system32\cmtrace.exe" -Destination "C:\Windows\System\cmtrace.exe" -verbose
+    $destDir = "C:\Windows\System"
+    if (-not (Test-Path -Path $destDir)) {
+        New-Item -Path $destDir -ItemType Directory -Force | Out-Null
+    }
+    Copy-Item "x:\windows\system32\cmtrace.exe" -Destination "$destDir\cmtrace.exe" -Verbose
 }
 
 if ($Manufacturer -match "Lenovo") {
@@ -116,12 +120,24 @@ if ($Manufacturer -match "Lenovo") {
     Copy-PSModuleToFolder -Name LSUClient -Destination "$PowerShellSavePath\Modules"
     Write-Host "Copy-PSModuleToFolder -Name Lenovo.Client.Scripting to $PowerShellSavePath\Modules"
     Copy-PSModuleToFolder -Name Lenovo.Client.Scripting -Destination "$PowerShellSavePath\Modules"
+    try {
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jared0215/OSDCloudWebScript/master/PostActionsTask.ps1" -OutFile "C:\OSDCloud\Scripts\PostActionsTask.ps1" -ErrorAction Stop
+        Write-Host -ForegroundColor Green "PostActionsTask.ps1 downloaded successfully."
+    }
+    catch {
+        Write-Host -ForegroundColor Red "Failed to download PostActionsTask.ps1: $($_.Exception.Message)"
+    }
+    #restart-computer
+    # --- AUTO-RESTART OUT OF WINPE ---
+    Write-Host -ForegroundColor Green "Restarting in 10 seconds!"
+    Start-Sleep -Seconds 10
+    if (Test-Path "X:\Windows\System32\wpeutil.exe") {
+        wpeutil reboot
+    }
 }
-
-# --- Register Post Deployment Task ---
-Write-SectionHeader -Message "Registering Post Deployment Task"
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jared0215/OSDCloudWebScript/master/PostActionsTask.ps1" -OutFile "$env:ProgramData\OSDCloud\PostActionsTask.ps1"
-
+else {
+    Write-Host -ForegroundColor Yellow "Not running in WinPE. Skipping wpeutil reboot."
+}
 #Restart
 #restart-computer
 # --- AUTO-RESTART OUT OF WINPE ---
