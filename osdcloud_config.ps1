@@ -114,32 +114,31 @@ if (Test-path -path "x:\windows\system32\cmtrace.exe") {
     Copy-Item "x:\windows\system32\cmtrace.exe" -Destination "$destDir\cmtrace.exe" -Verbose
 }
 
-if ($Manufacturer -match "Lenovo") {
-    $PowerShellSavePath = 'C:\Program Files\WindowsPowerShell'
-    Write-Host "Copy-PSModuleToFolder -Name LSUClient to $PowerShellSavePath\Modules"
-    Copy-PSModuleToFolder -Name LSUClient -Destination "$PowerShellSavePath\Modules"
-    Write-Host "Copy-PSModuleToFolder -Name Lenovo.Client.Scripting to $PowerShellSavePath\Modules"
-    Copy-PSModuleToFolder -Name Lenovo.Client.Scripting -Destination "$PowerShellSavePath\Modules"
-    try {
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jared0215/OSDCloudWebScript/master/PostActionsTask.ps1" -OutFile "C:\OSDCloud\Scripts\PostActionsTask.ps1" -ErrorAction Stop
-        Write-Host -ForegroundColor Green "PostActionsTask.ps1 downloaded successfully."
-    }
-    catch {
-        Write-Host -ForegroundColor Red "Failed to download PostActionsTask.ps1: $($_.Exception.Message)"
-    }
-    #restart-computer
-    # --- AUTO-RESTART OUT OF WINPE ---
-    Write-Host -ForegroundColor Green "Restarting in 10 seconds!"
-    Start-Sleep -Seconds 10
-    if (Test-Path "X:\Windows\System32\wpeutil.exe") {
-        wpeutil reboot
-    }
+Write-Host -ForegroundColor Cyan "Registering Post-Deployment Scheduled Task..."
+
+$TaskScriptPath = "$env:ProgramData\OSDCloud\PostActions.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jared0215/OSDCloudWebScript/master/PostActionsTask.ps1" -OutFile $TaskScriptPath
+
+$RegistryPath = "HKLM:\SOFTWARE\OSDCloud"
+$ScheduledTaskName = 'OSDCloudPostAction'
+
+if (!(Test-Path -Path ($TaskScriptPath | Split-Path))) {
+    New-Item -Path ($TaskScriptPath | Split-Path) -ItemType Directory -Force | Out-Null
 }
-else {
-    Write-Host -ForegroundColor Yellow "Not running in WinPE. Skipping wpeutil reboot."
-}
-#Restart
-#restart-computer
+
+New-Item -Path $RegistryPath -ItemType Directory -Force -ErrorAction SilentlyContinue | Out-Null
+New-ItemProperty -Path $RegistryPath -Name "TriggerPostActions" -PropertyType DWord -Value 1 -Force | Out-Null
+
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$TaskScriptPath`""
+$trigger = New-ScheduledTaskTrigger -AtLogOn
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -RunOnlyIfNetworkAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 1)
+$principal = New-ScheduledTaskPrincipal "NT AUTHORITY\SYSTEM" -RunLevel Highest
+$task = New-ScheduledTask -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Description "OSDCloud Post Action"
+
+Register-ScheduledTask -TaskName $ScheduledTaskName -InputObject $task -User "SYSTEM" -Force
+
+
+
 # --- AUTO-RESTART OUT OF WINPE ---
 Write-Host -ForegroundColor Green "Restarting in 10 seconds!"
 Start-Sleep -Seconds 10
