@@ -117,6 +117,11 @@ if ($Manufacturer -match "Lenovo") {
     Write-Host "Copy-PSModuleToFolder -Name Lenovo.Client.Scripting to $PowerShellSavePath\Modules"
     Copy-PSModuleToFolder -Name Lenovo.Client.Scripting -Destination "$PowerShellSavePath\Modules"
 }
+
+# --- Register Post Deployment Task ---
+Write-SectionHeader -Message "Registering Post Deployment Task"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jared0215/OSDCloudWebScript/master/PostActionsTask.ps1" -OutFile "$env:ProgramData\OSDCloud\PostActionsTask.ps1"
+
 #Restart
 #restart-computer
 # --- AUTO-RESTART OUT OF WINPE ---
