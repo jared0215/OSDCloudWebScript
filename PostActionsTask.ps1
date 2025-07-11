@@ -54,10 +54,29 @@ Invoke-UpdateScanMethodMSStore
 
 
 if (($CurrentRun -ge 2) -and ($CurrentRun -lt 5)){
-    #Start-Sleep -Seconds 60
-    #Restart-Computer -force
+    # Chocolatey + Dell Command Update
+    Write-Host "Installing Chocolatey and Dell Command Update..." -ForegroundColor Cyan
+
+    if (-not (Get-Command choco.exe -ErrorAction SilentlyContinue)) {
+        Write-Host "Installing Chocolatey..." -ForegroundColor Yellow
+        Set-ExecutionPolicy Bypass -Scope Process -Force
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+        Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+    } else {
+        Write-Host "Chocolatey already installed" -ForegroundColor Green
+    }
+
+    $env:Path += ";$env:ProgramData\chocolatey\bin"
+    Write-Host "Installing Dell Command Update..." -ForegroundColor Yellow
+    choco install dellcommandupdate -y --ignore-checksums
+
+    Write-Host "Running Dell Command Update to apply updates..." -ForegroundColor Cyan
+    Start-Process "C:\Program Files (x86)\Dell\CommandUpdate\dcu-cli.exe" -ArgumentList "/silent /applyupdates /reboot=enable"
+
+    # Reboot notice
     Start-Process shutdown -ArgumentList "/r /t 120 /c ""In 2 Minutes - Currently Performing Intial Setup Modifications - Reboot $CurrentRun of 5""  /f /d p:4:1"
 }
+
 
 if ($CurrentRun -ge 5){
     Start-Process shutdown -ArgumentList "/s /t 120 /c ""In 2 Minutes - !! -- Shutting down PC to signal process completed -- !!""  /f /d p:4:1"
