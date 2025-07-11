@@ -1,24 +1,26 @@
 $RegistryPath = "HKLM:\SOFTWARE\OSDCloud"
-$ScriptPath = "$env:ProgramData\OSDCloud\PostActions.ps1"
+$ScriptFolder = Join-Path $env:ProgramData 'OSDCloud'
+$ScriptPath = Join-Path $ScriptFolder 'PostActions.ps1'
 $ScheduledTaskName = 'OSDCloudPostAction'
 
+# Ensure script directory exists
+if (!(Test-Path -Path $ScriptFolder)) {
+    New-Item -Path $ScriptFolder -ItemType Directory -Force | Out-Null
+}
 
-if (!(Test-Path -Path ($ScriptPath | split-path))) { New-Item -Path ($ScriptPath | split-path) -ItemType Directory -Force | Out-Null }
+# Registry keys for tracking
 New-Item -Path $RegistryPath -ItemType Directory -Force | Out-Null
-New-ItemProperty -Path $RegistryPath -Name "TriggerPostActions" -PropertyType dword -Value 1 | Out-Null
+New-ItemProperty -Path $RegistryPath -Name "TriggerPostActions" -PropertyType dword -Value 1 -Force | Out-Null
 
-
-
-$action = (New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File $ScriptPath")
+# Register Scheduled Task
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`""
 $trigger = New-ScheduledTaskTrigger -AtLogOn
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -RunOnlyIfNetworkAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 1)
-$principal = New-ScheduledTaskPrincipal "NT Authority\System" -RunLevel Highest
+$principal = New-ScheduledTaskPrincipal "NT Authority\SYSTEM" -RunLevel Highest
 $task = New-ScheduledTask -Action $action -Trigger $trigger -Settings $settings -Description "OSDCloud Post Action" -Principal $principal
-Register-ScheduledTask $ScheduledTaskName -InputObject $task -User SYSTEM
+Register-ScheduledTask $ScheduledTaskName -InputObject $task -User "SYSTEM"
 
-
-
-#Script That Runs:
+# Write the PostActions script
 $PostActionScript = @'
 
 $RegistryPath = "HKLM:\SOFTWARE\OSDCloud"
