@@ -143,3 +143,32 @@ Register-ScheduledTask -TaskName $ScheduledTaskName -InputObject $task -User "SY
 Write-Host -ForegroundColor Green "Restarting in 10 seconds!"
 Start-Sleep -Seconds 10
 wpeutil reboot
+
+# --- Begin PostActions Setup ---
+Write-Host "Setting up PostActions script..." -ForegroundColor Cyan
+
+$ScriptPath = "$env:ProgramData\\OSDCloud\\PostActions.ps1"
+$ScriptDirectory = Split-Path -Path $ScriptPath
+
+# Ensure target directory exists
+if (!(Test-Path -Path $ScriptDirectory)) {
+    New-Item -Path $ScriptDirectory -ItemType Directory -Force | Out-Null
+}
+
+# Download the PostActions.ps1 script
+$PostActionsUrl = "https://raw.githubusercontent.com/jared0215/OSDCloudWebScript/master/PostActions.ps1"
+Invoke-WebRequest -Uri $PostActionsUrl -OutFile $ScriptPath -UseBasicParsing
+Unblock-File -Path $ScriptPath
+
+# Download and run the PostActionsTask.ps1 to register the Scheduled Task
+$PostActionsTaskUrl = "https://raw.githubusercontent.com/jared0215/OSDCloudWebScript/master/PostActionsTask.ps1"
+$TempTaskScript = "$env:TEMP\\PostActionsTask.ps1"
+Invoke-WebRequest -Uri $PostActionsTaskUrl -OutFile $TempTaskScript -UseBasicParsing
+Unblock-File -Path $TempTaskScript
+
+# Run both scripts with ExecutionPolicy Bypass
+Start-Process powershell.exe -ArgumentList "-ExecutionPolicy Bypass -File `"$ScriptPath`"" -Wait
+Start-Process powershell.exe -ArgumentList "-ExecutionPolicy Bypass -File `"$TempTaskScript`"" -Wait
+
+Write-Host "PostActions setup complete." -ForegroundColor Green
+# --- End PostActions Setup ---
