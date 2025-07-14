@@ -50,8 +50,8 @@ function Write-SectionSuccess {
 }
 #endregion
 
-$ScriptName = 'win11.garytown.com'
-$ScriptVersion = '25.01.22.1'
+$ScriptName = 'Jared Provisioning Script'
+$ScriptVersion = '1.0'
 Write-Host -ForegroundColor Green "$ScriptName $ScriptVersion"
 
 
@@ -114,61 +114,8 @@ if (Test-path -path "x:\windows\system32\cmtrace.exe") {
     Copy-Item "x:\windows\system32\cmtrace.exe" -Destination "$destDir\cmtrace.exe" -Verbose
 }
 
-Write-Host -ForegroundColor Cyan "Registering Post-Deployment Scheduled Task..."
-
-$TaskScriptPath = "$env:ProgramData\OSDCloud\PostActions.ps1"
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jared0215/OSDCloudWebScript/master/PostActionsTask.ps1" -OutFile $TaskScriptPath
-
-$RegistryPath = "HKLM:\SOFTWARE\OSDCloud"
-$ScheduledTaskName = 'OSDCloudPostAction'
-
-if (!(Test-Path -Path ($TaskScriptPath | Split-Path))) {
-    New-Item -Path ($TaskScriptPath | Split-Path) -ItemType Directory -Force | Out-Null
-}
-
-New-Item -Path $RegistryPath -ItemType Directory -Force -ErrorAction SilentlyContinue | Out-Null
-New-ItemProperty -Path $RegistryPath -Name "TriggerPostActions" -PropertyType DWord -Value 1 -Force | Out-Null
-
-$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$TaskScriptPath`""
-$trigger = New-ScheduledTaskTrigger -AtLogOn
-$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -RunOnlyIfNetworkAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 1)
-$principal = New-ScheduledTaskPrincipal "NT AUTHORITY\SYSTEM" -RunLevel Highest
-$task = New-ScheduledTask -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Description "OSDCloud Post Action"
-
-Register-ScheduledTask -TaskName $ScheduledTaskName -InputObject $task -User "SYSTEM" -Force
-
-
 
 # --- AUTO-RESTART OUT OF WINPE ---
 Write-Host -ForegroundColor Green "Restarting in 10 seconds!"
 Start-Sleep -Seconds 10
 wpeutil reboot
-
-# --- Begin PostActions Setup ---
-Write-Host "Setting up PostActions script..." -ForegroundColor Cyan
-
-$ScriptPath = "$env:ProgramData\\OSDCloud\\PostActions.ps1"
-$ScriptDirectory = Split-Path -Path $ScriptPath
-
-# Ensure target directory exists
-if (!(Test-Path -Path $ScriptDirectory)) {
-    New-Item -Path $ScriptDirectory -ItemType Directory -Force | Out-Null
-}
-
-# Download the PostActions.ps1 script
-$PostActionsUrl = "https://raw.githubusercontent.com/jared0215/OSDCloudWebScript/master/PostActions.ps1"
-Invoke-WebRequest -Uri $PostActionsUrl -OutFile $ScriptPath -UseBasicParsing
-Unblock-File -Path $ScriptPath
-
-# Download and run the PostActionsTask.ps1 to register the Scheduled Task
-$PostActionsTaskUrl = "https://raw.githubusercontent.com/jared0215/OSDCloudWebScript/master/PostActionsTask.ps1"
-$TempTaskScript = "$env:TEMP\\PostActionsTask.ps1"
-Invoke-WebRequest -Uri $PostActionsTaskUrl -OutFile $TempTaskScript -UseBasicParsing
-Unblock-File -Path $TempTaskScript
-
-# Run both scripts with ExecutionPolicy Bypass
-Start-Process powershell.exe -ArgumentList "-ExecutionPolicy Bypass -File `"$ScriptPath`"" -Wait
-Start-Process powershell.exe -ArgumentList "-ExecutionPolicy Bypass -File `"$TempTaskScript`"" -Wait
-
-Write-Host "PostActions setup complete." -ForegroundColor Green
-# --- End PostActions Setup ---
